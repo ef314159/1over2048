@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+	<head>
+		<title>1/2048!</title>
+		<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+		<style>
+			canvas {
+				cursor: default;
+				outline: none;
+			}
+		</style>
+	</head>
+	
+	<body>
+		<div align="center" id="embed-com.me.mygdxgame.GwtDefinition">
+			<h1>1/2048</h1>
+			<p>Made as a quick experiment in deploying from LibGDX to HTML5/JS, and hosting the game using Github Pages. Turns out that both LibGDX and Github Pages are beyond awesome.</p>
+			<p>Complete ripoff of <a href="http://gabrielecirulli.github.io/2048/">2048</a>, in which you move tiles on a grid and new ones appear randomly - here, you place new tiles on the grid and they move randomly. I have no idea whether it's possible to win.</p>
+		</div>
+		<script type="text/javascript" src="com.me.mygdxgame.GwtDefinition/com.me.mygdxgame.GwtDefinition.nocache.js"></script>
+	</body>
+	
+	<script>
+		function handleMouseDown(evt) {
+		  evt.preventDefault();
+		  evt.stopPropagation();
+		  evt.target.style.cursor = 'default';
+		}
+		
+		function handleMouseUp(evt) {
+		  evt.preventDefault();
+		  evt.stopPropagation();
+		  evt.target.style.cursor = '';
+		}
+		
+		document.getElementById('embed-com.me.mygdxgame.GwtDefinition').addEventListener('mousedown', handleMouseDown, false);
+		document.getElementById('embed-com.me.mygdxgame.GwtDefinition').addEventListener('mouseup', handleMouseUp, false);
+	</script>
+</html>
