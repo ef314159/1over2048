@@ -2,7 +2,6 @@ package com.me.mygdxgame;
 
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Random;
 
 import aurelienribon.tweenengine.Tween;
 import aurelienribon.tweenengine.TweenEquations;
@@ -14,35 +13,40 @@ import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.Timer.Task;
 
 /**
- * doing everything in one class yaaaaaaaaaay lol
+ * Represents a 2048 board. Acts as model, view, and controller, updating game
+ * state, rendering the board and accepting input.
  * @author ef314159
  */
 public class MyGdxGame implements ApplicationListener, InputProcessor {
 	// LibGDX rendering stuffs and background sprite.
 	private OrthographicCamera camera;
 	private SpriteBatch batch;
-	private Sprite bgSprite, mouseIndicator, gameOverLay; // haha overlay
+	private Sprite bgSprite, mouseIndicator, gameOverLay;
 	
+	// Sprite and texture for the restart button
 	private Sprite restart;
 	private Texture restart0, restart1;
 	
+	// stored mouse location to display tinted tile
 	private int mouseX = 0, mouseY = 0;
 	
+	// the board itself as a Tile array
 	private Tile[][] grid = new Tile[4][4];
+	
+	// tiles that are currently tweening (tiles are never alone in these lists,
+	//  they always have a location on the grid as well)
 	private List<Tile> transit = new LinkedList<Tile>();
 	private List<Tile> newTiles = new LinkedList<Tile>();
+	
+	// time awareness and tweening stuffs
 	private TweenManager manager = new TweenManager();
 	private Timer moveTimer;
-	private Random RNG = new Random();
-	
-	private boolean gameOver = false;
 	
 	// times for tween animations and respective AI delays
 	// time for a tile to move from one position to another
@@ -52,10 +56,12 @@ public class MyGdxGame implements ApplicationListener, InputProcessor {
 	// time for a merged tile to "pop" (scale: 1 -> 1)
 	private final float MERGE_TIME = 0.05f;
 	
-	// direction constants. fuck enums 
+	private boolean gameOver = false;
+	
+	// direction constants.
 	private static final int D_LEFT = 0, D_RIGHT = 1, D_DOWN = 2, D_UP = 3;
 	
-	// tile textures: tiles[0] is 1/2, tiles[1] is 1/4, etc
+	// tile textures: tiles[0] is the 1/2 tile, tiles[1] is 1/4, etc
 	private Texture[] tiles;
 	
 	@Override public void create() {		
@@ -150,12 +156,6 @@ public class MyGdxGame implements ApplicationListener, InputProcessor {
 		
 		manager.update(Gdx.graphics.getDeltaTime());
 	}
-
-	// arrays for AI movement during touchUp()
-	// defines whether a move in a given direction is possible
-	boolean moves[] = new boolean[4];
-	// defines the value of a given move based on the tiles it merges, currently broken
-	//int value[] = new int[4];
 	
 	@Override public boolean mouseMoved(int screenX, int screenY) {
 		mouseX = screenX;
@@ -199,34 +199,21 @@ public class MyGdxGame implements ApplicationListener, InputProcessor {
 			// schedule the AI action (or game over if no AI move is possible).
 			moveTimer.scheduleTask(new Task(){
 				@Override public void run() {
-					boolean movesExist = false;
-					// non-functional AI strategy based on value. 
-					//int mostValue = -1;
+					int mostValue = -1;
+					int value[] = new int[4];
 					
-					// find out which directions are usable
 					for (int i = 0; i < 4; ++i) {
-						moves[i] = canMove(i);
-						if (moves[i]) movesExist = true;
+						if (!canMove(i)) value[i] = -1;
+						else {
+							value[i] = moveValue(i, grid, 3);
+							if (mostValue == -1 || value[i] > value[mostValue]) mostValue = i;
+						}
+						System.out.print(value[i] + " ");
 					}
+					System.out.println("");
 					
-					// more code for value strategy
-					/*for (int i = 0; i < 4; ++i) {
-						value[i] = moveValue(i);
-						if (mostValue == -1 || value[i] > value[mostValue]) mostValue = i;
-					}*/
-					
-					if (movesExist) {
-						int direction = -1;
-						do {
-							// select direction randomly
-							direction = RNG.nextInt(4);
-							
-							// select direction based on priority - 3 only used in worst-case scenario
-							//direction++;
-						} while (!moves[direction]);
-						
-						move(direction);
-						//move(mostValue);
+					if (mostValue > -1) {
+						move(mostValue, grid, true);
 						
 						for (int i = 0; i < 4; ++i) {
 							for (int j = 0; j < 4; ++j) {
@@ -243,6 +230,10 @@ public class MyGdxGame implements ApplicationListener, InputProcessor {
 		}
 	}
 	
+	/**
+	 * Ends the game. Displays an overlay and a button sprite for restarting.
+	 * @param won whether the game ended in success
+	 */
 	private void endGame(boolean won) {
 		gameOver = true;
 		
@@ -255,6 +246,9 @@ public class MyGdxGame implements ApplicationListener, InputProcessor {
 		restart.setPosition(-restart.getWidth()/2, -restart.getHeight()/2 - 64);
 	}
 	
+	/**
+	 * Clears the entire board and the lists of any tiles still tweening.
+	 */
 	private void restart() {
 		for (int i = 0; i < 4; ++i) {
 			for (int j = 0; j < 4; ++j) {
@@ -356,100 +350,111 @@ public class MyGdxGame implements ApplicationListener, InputProcessor {
 			}
 		return false;
 	}
-	
+		
 	/**
 	 * Returns the value of a given move. Value is calculated based on the value of merged
 	 * tiles after the move. A move that merges no tiles is worth 0, a move that merges two
 	 * 1/2 tiles is worth 2, A move that merges two 1/16 tiles is worth 16, etc.
 	 * 
-	 * Currently broken because I'm dumb. TODO: fix
-	 * 
 	 * @param direction The direction to check for move value as a number in 0..3
 	 * @return the value of a move in that direction
 	 */
-	private int moveValue(int direction) {
-		int points = 0;
-		switch (direction) {
-			case D_LEFT:
-				for (int i = 0; i < 4; ++i) {
-					int spaces = 0;
-					for (int j = 0; j < 4; ++j) {
-						if (grid[j][i] == null) spaces++;
-						else {
-							if (j-spaces > 0 &&
-									grid[j-spaces-1][i] != null &&
-									grid[j-spaces-1][i].getNumber() == grid[j][i].getNumber()) {
-								//spaces++;
-								points += Math.pow(2, grid[j][i].getNumber());
-							}
-						}
-					}
-				}
-				break;
-				
-			case D_RIGHT:
-				for (int i = 0; i < 4; ++i) {
-					int spaces = 0;
-					for (int j = 3; j >= 0; --j) {
-						if (grid[j][i] == null) spaces++;
-						else {
-							if (j+spaces < 3 &&
-									grid[j+spaces+1][i] != null &&
-									grid[j+spaces+1][i].getNumber() == grid[j][i].getNumber()) {
-								//spaces++;
-								points += Math.pow(2, grid[j][i].getNumber());
-							}
-						}
-					}
-				}
-				break;
-				
-			case D_UP:
-				for (int i = 0; i < 4; ++i) {
-					int spaces = 0;
-					for (int j = 3; j >= 0; --j) {
-						if (grid[i][j] == null) spaces++;
-						else {
-							if (j+spaces < 3 &&
-									grid[i][j+spaces+1] != null &&
-									grid[i][j+spaces+1].getNumber() == grid[i][j].getNumber()) {
-								//spaces++;
-								points += Math.pow(2, grid[i][j].getNumber());
-							}
-						}
-					}
-				}
-				break;
-				
-			case D_DOWN:
-				for (int i = 0; i < 4; ++i) {
-					int spaces = 0;
-					for (int j = 0; j < 4; ++j) {
-						if (grid[i][j] == null) spaces++;
-						else {
-							if (j-spaces > 0 &&
-									grid[i][j-spaces-1] != null &&
-									grid[i][j-spaces-1].getNumber() == grid[i][j].getNumber()) {
-								//spaces++;
-								points += Math.pow(2, grid[i][j].getNumber());
-							}
-						}
-					}
-				}
-				break;
+	private int moveValue(int direction, Tile[][] grid, int lookAhead) {
+		Tile[][] clone = cloneGrid(grid);
+		move(direction, clone, false);
+		return movePotential(clone, lookAhead);
+	}
+	
+	/**
+	 * Calculates the value of a grid, taking into account moves that can be
+	 * made from that position. This algorithm simplifies the game to assume
+	 * that no new tiles will be placed.
+	 * 
+	 * @param grid the grid to analyze
+	 * @param lookAhead the number of potential moves to look ahead
+	 * @return the grid's value
+	 */
+	private int movePotential(Tile[][] grid, int lookAhead) {
+		int points = -1;
+		
+		if (lookAhead == 0) {
+			return gridValue(grid);
+		} else {
+			for (int i = 0; i < 4; ++i) {
+				Tile[][] clone = cloneGrid(grid);
+				move(i, clone, false);
+				points = Math.max(points, movePotential(clone, lookAhead - 1));
 			}
+		}
+		
+		// future potential is divided by 2 and added to the current value
+		// this prioritizes marging valuable tiles as fast as possible
+		return points/2 + gridValue(grid);
+	}
+	
+	/**
+	 * Calculates the value for an entire grid. The naive way to do this is to
+	 * sum up the values of all the tiles in the grid, so that a grid with a 4
+	 * tile has a better value than a grid with two 2 tiles.
+	 * @param grid the grid to sum up the value of
+	 * @return the summed value of the grid
+	 */
+	private int gridValue(Tile[][] grid) {
+		int points = 0;
+
+		for (int i = 0; i < 4; ++i) {
+			for (int j = 0; j < 4; ++j) {
+				if (grid[i][j] != null) points += tileValue(grid[i][j]);
+			}
+		}
+		
 		return points;
 	}
 	
 	/**
-	 * Moves all tiles on the grid in a given direction, and merges tiles of equal numbers
-	 * if they collide. Adds tiles to the "transit" list if they merge with other tiles, so
-	 * they can be displayed even though they are no longer on the grid. Schedules a timer 
-	 * task to run after tweening is finished to display the new (merged) tiles and clear
-	 * the transit and newTiles lists.
-	 * @param direction The direction to move as a number in 0..3
+	 * Calculates the AI's value for a single tile, using the tile.getNumber()
+	 * accessor. 2^getNumber() would give the visible 2,4,8... values, but
+	 * would result in two 2 tiles weighing the same as a single 4 tile. This
+	 * method uses 4^getNumber() to prioritize marging tiles.
+	 * @param t the tile to get the value of
+	 * @return the tile's value
 	 */
-	private void move (int direction) {
+	private int tileValue(Tile t) {
+		return (int)Math.pow(4, t.getNumber());
+	}
+	
+	/**
+	 * Clones a grid so that move() may be called on it without affecting the
+	 * original grid.
+	 * @param grid the grid to clone
+	 * @return a new grid with the same tiles as the original
+	 */
+	private Tile[][] cloneGrid(Tile[][] grid) {
+		Tile[][] clone = new Tile[4][4];
+
+		for (int i = 0; i < 4; ++i) {
+			for (int j = 0; j < 4; ++j) {
+				clone[i][j] = grid[i][j];
+			}
+		}
+		
+		return clone;
+	}
+	
+	/**
+	 * Moves all tiles on the grid in a given direction, and merges tiles of
+	 * equal numbers if they collide.
+	 * 
+	 * May also add tiles to the "transit" list if they merge with other tiles,
+	 * so they can be displayed even though they are no longer on the grid, and
+	 * schedule a timer  task to run after tweening is finished to display the
+	 * new (merged) tiles and clear the transit and newTiles lists.
+	 * 
+	 * @param direction The direction to move as a number in 0..3
+	 * @param grid the grid on which to do the move
+	 * @param whether to add any moving or merged tiles to the tween lists
+	 */
+	private void move (int direction, Tile[][] grid, boolean doTweens) {
 		switch (direction) {
 			case D_LEFT:
 				for (int i = 0; i < 4; ++i) {
@@ -476,9 +481,11 @@ public class MyGdxGame implements ApplicationListener, InputProcessor {
 							}
 
 							if (spaces > 0) {
-								Tween.to(t, TileAccessor.TWEEN_X, MOVE_TIME)
-									.target(t.getX() - spaces*128)
-									.start(manager);
+								if (doTweens) {
+									Tween.to(t, TileAccessor.TWEEN_X, MOVE_TIME)
+										.target(t.getX() - spaces*128)
+										.start(manager);
+								}
 								grid[j][i] = null;
 							}
 						}
@@ -511,9 +518,11 @@ public class MyGdxGame implements ApplicationListener, InputProcessor {
 							}
 
 							if (spaces > 0) {
-								Tween.to(t, TileAccessor.TWEEN_X, MOVE_TIME)
-									.target(t.getX() + spaces*128)
-									.start(manager);
+								if (doTweens) {
+									Tween.to(t, TileAccessor.TWEEN_X, MOVE_TIME)
+										.target(t.getX() + spaces*128)
+										.start(manager);
+								}
 								grid[j][i] = null;
 							}
 						}
@@ -546,9 +555,11 @@ public class MyGdxGame implements ApplicationListener, InputProcessor {
 							}
 
 							if (spaces > 0) {
-								Tween.to(t, TileAccessor.TWEEN_Y, MOVE_TIME)
-									.target(t.getY() + spaces*128)
-									.start(manager);
+								if (doTweens) {
+									Tween.to(t, TileAccessor.TWEEN_Y, MOVE_TIME)
+										.target(t.getY() + spaces*128)
+										.start(manager);
+								}
 								grid[i][j] = null;
 							}
 						}
@@ -581,9 +592,11 @@ public class MyGdxGame implements ApplicationListener, InputProcessor {
 							}
 
 							if (spaces > 0) {
-								Tween.to(t, TileAccessor.TWEEN_Y, MOVE_TIME)
-									.target(t.getY() - spaces*128)
-									.start(manager);
+								if (doTweens) {
+									Tween.to(t, TileAccessor.TWEEN_Y, MOVE_TIME)
+										.target(t.getY() - spaces*128)
+										.start(manager);
+								}
 								grid[i][j] = null;
 							}
 						}
@@ -592,11 +605,13 @@ public class MyGdxGame implements ApplicationListener, InputProcessor {
 				break;
 		}
 		
-		moveTimer.scheduleTask(new Task(){
-			@Override public void run() {
-				clearTransit();
-			}
-		}, MOVE_TIME);
+		if (doTweens) {
+			moveTimer.scheduleTask(new Task(){
+				@Override public void run() {
+					clearTransit();
+				}
+			}, MOVE_TIME);
+		}
 	}
 	
 	/**

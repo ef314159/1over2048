@@ -1,4 +1,4 @@
-d::0:application/unknown
+d:war/:0:application/unknown
 i:1024.png:7629:image/png
 i:128.png:5842:image/png
 i:16.png:3098:image/png
