@@ -8,7 +8,7 @@ import com.badlogic.gdx.backends.gwt.GwtApplicationConfiguration;
 public class GwtLauncher extends GwtApplication {
 	@Override
 	public GwtApplicationConfiguration getConfig () {
-		GwtApplicationConfiguration cfg = new GwtApplicationConfiguration(1024, 768);
+		GwtApplicationConfiguration cfg = new GwtApplicationConfiguration(512, 512);
 		return cfg;
 	}
 

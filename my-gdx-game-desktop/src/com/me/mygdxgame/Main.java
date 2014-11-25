@@ -7,8 +7,8 @@ public class Main {
 	public static void main(String[] args) {
 		LwjglApplicationConfiguration cfg = new LwjglApplicationConfiguration();
 		cfg.title = "my-gdx-game";
-		cfg.width = 640;
-		cfg.height = 640;
+		cfg.width = 512;
+		cfg.height = 512;
 		
 		new LwjglApplication(new MyGdxGame(), cfg);
 	}
